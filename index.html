@@ -5,20 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Трекер Улик</title>
 
+<!-- ДОЛЖНО БЫТЬ ВЫШЕ <script type="module"> -->
 <script>
   var __firebase_config = JSON.stringify({
     apiKey: "AIzaSyABi8Le3nJgRtZJGgd6B54S16RNZr3qUbs",
     authDomain: "defamquliki.firebaseapp.com",
     projectId: "defamquliki",
-    storageBucket: "defamquliki.firebasestorage.app",
+    storageBucket: "defamquliki.appspot.com",      // ← чаще всего так
     messagingSenderId: "443769403789",
-    appId: "1:443769403789:web:57b2b1241759e00f3ae5c4
+    appId: "1:443769403789:web:57b2b1241759e00f3ae5c4" // ← закрывающая кавычка!
   });
 
-  // Можно оставить как есть
   var __initial_auth_token = null;
   var __app_id = "my-evidence-tracker";
 </script>
+
 
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -357,4 +358,5 @@
   </div>
 </body>
 </html>
+
 
