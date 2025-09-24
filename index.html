@@ -7,53 +7,78 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         setLogLevel('debug');
 
-        // Инициализируем Firebase с использованием глобальных переменных
-        const firebaseConfig = JSON.parse(__firebase_config);
-        
-        window.app = initializeApp(firebaseConfig);
-        window.auth = getAuth(window.app);
-        window.db = getFirestore(window.app);
-        
-        // Используем onAuthStateChanged для надежной аутентификации и инициализации приложения
-        onAuthStateChanged(window.auth, async (user) => {
-            if (user) {
-                window.userId = user.uid;
-                console.log("Пользователь успешно аутентифицирован. ID: ", window.userId);
+        // Используем DOMContentLoaded, чтобы убедиться, что весь HTML загружен
+        document.addEventListener('DOMContentLoaded', () => {
+            // Проверяем наличие переменной перед ее использованием
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            
+            // Проверяем наличие специального токена для аутентификации
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            
+            if (initialAuthToken) {
+                signInWithCustomToken(auth, initialAuthToken).then((userCredential) => {
+                    window.userId = userCredential.user.uid;
+                    console.log("Пользователь успешно аутентифицирован с кастомным токеном. ID: ", window.userId);
+                    startApp(db);
+                }).catch((error) => {
+                    console.error("Ошибка аутентификации с кастомным токеном: ", error);
+                    // Попытка анонимного входа, если кастомный токен не сработал
+                    signInAnonymously(auth).then((userCredential) => {
+                        window.userId = userCredential.user.uid;
+                        console.log("Пользователь успешно аутентифицирован анонимно. ID: ", window.userId);
+                        startApp(db);
+                    }).catch((error) => {
+                        console.error("Ошибка анонимной аутентификации: ", error);
+                    });
+                });
+            } else {
+                signInAnonymously(auth).then((userCredential) => {
+                    window.userId = userCredential.user.uid;
+                    console.log("Пользователь успешно аутентифицирован анонимно. ID: ", window.userId);
+                    startApp(db);
+                }).catch((error) => {
+                    console.error("Ошибка анонимной аутентификации: ", error);
+                });
+            }
 
-                // Запускаем инициализацию приложения только после успешной аутентификации
-                const FACTION_KEY = 'factionsData';
+            // Основная функция, которая запускает приложение
+            function startApp(db) {
                 const factions = [
                     { id: 'fib', name: 'FIB' },
                     { id: 'lspd', name: 'LSPD' },
                     { id: 'lssd', name: 'LSSD' }
                 ];
-
+    
                 const evidences = [
-                    'Амунка',
-                    'Поезд',
-                    'Рейд',
-                    'Чёрный рынок',
-                    'Допрос от гос',
-                    'Масскафф',
-                    'Допрос DB / SID / SDB'
+                    { name: 'Амунка', purpose: 'Простая улика' },
+                    { name: 'Поезд', purpose: 'Простая улика' },
+                    { name: 'Рейд', purpose: 'Простая улика' },
+                    { name: 'Чёрный рынок', purpose: 'Простая улика' },
+                    { name: 'Допрос от гос', purpose: 'Простая улика' },
+                    { name: 'Масскафф', purpose: 'Простая улика' },
+                    { name: 'Допрос DB / SID / SDB', purpose: 'Простая улика' }
                 ];
-
+                
+                const raidTarget = 4;
+                const deleteInfoTarget = 6;
+    
                 const progressBarsContainer = document.getElementById('progress-bars');
                 const gridBody = document.getElementById('evidence-grid-body');
                 const resetButton = document.getElementById('reset-button');
                 const userIdDisplay = document.getElementById('user-id-display');
                 
-                const db = getFirestore(window.app);
-                // ИСПРАВЛЕНО: Используем переменную среды __app_id для правильного пути
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                 const trackerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'evidence_trackers', 'main-tracker');
-
+    
                 async function initTrackerAndListen() {
                     try {
                         const docSnap = await getDoc(trackerDocRef);
@@ -62,7 +87,6 @@
                             await setDoc(trackerDocRef, {});
                         }
                         
-                        // Теперь, когда документ гарантированно существует, запускаем слушатель
                         listenForUpdates();
                         initialize();
                         
@@ -77,7 +101,7 @@
                     renderProgressBars();
                     setupEventListeners();
                 }
-
+    
                 function listenForUpdates() {
                     onSnapshot(trackerDocRef, (docSnap) => {
                         const data = docSnap.exists() ? docSnap.data() : {};
@@ -89,7 +113,7 @@
                         gridBody.innerHTML = '<div class="text-center p-8 text-red-500">Произошла ошибка при загрузке данных. Проверьте соединение и консоль.</div>';
                     });
                 }
-
+    
                 function renderProgressBars() {
                     progressBarsContainer.innerHTML = '';
                     factions.forEach(faction => {
@@ -100,18 +124,34 @@
                                     <div id="progress-${faction.id}" class="progress-bar-inner bg-teal-500 h-6 rounded-full flex items-center justify-center text-white font-bold" style="width: 0%;"></div>
                                 </div>
                                  <p id="progress-text-${faction.id}" class="mt-1 text-sm text-gray-600">0 / ${evidences.length}</p>
+                                <div class="mt-4 space-y-2">
+                                    <div>
+                                        <h4 class="text-sm font-medium">Рейд (${raidTarget})</h4>
+                                        <div class="bg-gray-200 rounded-full h-6 overflow-hidden relative">
+                                            <div id="raid-progress-${faction.id}" class="progress-bar-inner bg-yellow-500 h-6 rounded-full" style="width: 0%;"></div>
+                                            <span id="raid-progress-text-${faction.id}" class="absolute inset-0 flex items-center justify-center text-gray-800 font-bold text-sm">0/${raidTarget}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-medium">Удаление инфо (${deleteInfoTarget})</h4>
+                                        <div class="bg-gray-200 rounded-full h-6 overflow-hidden relative">
+                                            <div id="delete-info-progress-${faction.id}" class="progress-bar-inner bg-purple-500 h-6 rounded-full" style="width: 0%;"></div>
+                                            <span id="delete-info-progress-text-${faction.id}" class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm">0/${deleteInfoTarget}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         `;
                         progressBarsContainer.insertAdjacentHTML('beforeend', barHTML);
                     });
                 }
-
+    
                 function renderGrid(trackerState) {
                     gridBody.innerHTML = '';
                     evidences.forEach((evidence, evidenceIndex) => {
                         let rowHTML = `
                             <div class="grid grid-cols-4 items-center border-t border-gray-200">
-                                <div class="col-span-1 p-4 font-medium">${evidence}</div>
+                                <div class="col-span-1 p-4 font-medium">${evidence.name}</div>
                         `;
                         factions.forEach(faction => {
                             const isChecked = trackerState[faction.id] && trackerState[faction.id][evidenceIndex];
@@ -141,7 +181,7 @@
                         await resetAll();
                     });
                 }
-
+    
                 async function toggleCellState(cell) {
                     const factionId = cell.dataset.factionId;
                     const evidenceIndex = cell.dataset.evidenceIndex;
@@ -160,12 +200,12 @@
                         console.error("Ошибка при обновлении документа: ", e);
                     }
                 }
-
+    
                 function updateProgressForFaction(trackerState, factionId) {
                     const checkedCount = Object.values(trackerState[factionId] || {}).filter(Boolean).length;
                     const totalCount = evidences.length;
                     const percentage = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0;
-
+    
                     const progressBar = document.getElementById(`progress-${factionId}`);
                     const progressText = document.getElementById(`progress-text-${factionId}`);
                     
@@ -176,12 +216,39 @@
                     if (progressText) {
                         progressText.textContent = `${checkedCount} / ${totalCount}`;
                     }
+                    updateGoalProgress(trackerState, factionId);
                 }
                 
                 function updateAllProgress(trackerState) {
                     factions.forEach(faction => updateProgressForFaction(trackerState, faction.id));
                 }
                 
+                function updateGoalProgress(trackerState, factionId) {
+                    const factionData = trackerState[factionId] || {};
+                    let checkedCount = Object.values(factionData).filter(Boolean).length;
+    
+                    const raidProgress = document.getElementById(`raid-progress-${factionId}`);
+                    const deleteInfoProgress = document.getElementById(`delete-info-progress-${factionId}`);
+                    const raidProgressText = document.getElementById(`raid-progress-text-${factionId}`);
+                    const deleteInfoProgressText = document.getElementById(`delete-info-progress-text-${factionId}`);
+                    
+                    const raidPercentage = (checkedCount / raidTarget) * 100;
+                    if (raidProgress) {
+                        raidProgress.style.width = `${Math.min(raidPercentage, 100)}%`;
+                    }
+                    if (raidProgressText) {
+                        raidProgressText.textContent = `${Math.min(checkedCount, raidTarget)}/${raidTarget}`;
+                    }
+    
+                    const deleteInfoPercentage = (checkedCount / deleteInfoTarget) * 100;
+                    if (deleteInfoProgress) {
+                        deleteInfoProgress.style.width = `${Math.min(deleteInfoPercentage, 100)}%`;
+                    }
+                    if (deleteInfoProgressText) {
+                        deleteInfoProgressText.textContent = `${Math.min(checkedCount, deleteInfoTarget)}/${deleteInfoTarget}`;
+                    }
+                }
+    
                 async function resetAll() {
                     try {
                         const emptyState = {};
@@ -190,19 +257,8 @@
                         console.error("Ошибка при сбросе документа: ", e);
                     }
                 }
-
+    
                 initTrackerAndListen();
-            } else {
-                // Если пользователь не аутентифицирован, пробуем войти в систему
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(window.auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(window.auth);
-                    }
-                } catch (e) {
-                    console.error("Ошибка при аутентификации: ", e);
-                }
             }
         });
     </script>
@@ -243,12 +299,13 @@
             <div id="user-info" class="text-center text-sm mb-4 text-gray-500">
                 <span id="user-id-display">Загрузка пользователя...</span>
             </div>
+            
             <section id="progress-section" class="mb-8 p-6 bg-white rounded-2xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-center">Прогресс сбора улик</h2>
                 <div id="progress-bars" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 </div>
             </section>
-
+            
             <section id="evidence-tracker" class="bg-white rounded-2xl shadow-md overflow-hidden">
                 <div id="evidence-grid-header" class="grid grid-cols-4 items-center p-4 bg-gray-100 font-bold text-gray-700">
                     <div class="col-span-1 text-lg">Улика</div>
@@ -257,7 +314,7 @@
                     <div class="col-span-1 text-center text-lg">LSSD</div>
                 </div>
                 <div id="evidence-grid-body">
-                    <div class="text-center p-8 text-gray-500">Загрузка данных. Пожалуйста, проверьте соединение и консоль.</div>
+                    <div class="text-center p-8 text-gray-500">Загрузка данных. Пожалуйста, проверьте консоль (F12) на наличие отладочных сообщений.</div>
                 </div>
             </section>
 
