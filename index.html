@@ -15,8 +15,25 @@
 
         // Используем DOMContentLoaded, чтобы убедиться, что весь HTML загружен
         document.addEventListener('DOMContentLoaded', () => {
-            // Проверяем наличие переменной перед ее использованием
-            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            let firebaseConfig = null;
+            if (typeof __firebase_config !== 'undefined') {
+                try {
+                    const parsedConfig = JSON.parse(__firebase_config);
+                    // Проверяем, что объект конфигурации не пуст
+                    if (Object.keys(parsedConfig).length > 0) {
+                        firebaseConfig = parsedConfig;
+                    }
+                } catch (e) {
+                    console.error("Не удалось разобрать __firebase_config:", e);
+                }
+            }
+
+            if (!firebaseConfig) {
+                console.error("Конфигурация Firebase не найдена или неверна. Невозможно инициализировать приложение.");
+                document.body.innerHTML = '<div class="flex justify-center items-center h-screen bg-amber-50 text-gray-800"><p class="text-xl font-bold text-red-500">Ошибка: Конфигурация приложения не найдена. Пожалуйста, обратитесь к администратору.</p></div>';
+                return;
+            }
+
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
